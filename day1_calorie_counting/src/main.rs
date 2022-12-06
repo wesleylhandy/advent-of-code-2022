@@ -1,10 +1,21 @@
 pub mod data;
 
 fn main() {
-    max_calories();
+    let calories_by_elf = read_to_calories_by_elf_reverse_sorted();
+    // Part 1;
+    println!("Max Calories Carried by A Single Elf: {}", calories_by_elf[0]);
+
+    // Part 2;
+    print!("Sum of Top 3 Elves:");
+    let mut sum: u32 = 0;
+    for n in 0..3 {
+        sum = add_value(sum,calories_by_elf[n]);
+        
+    }
+    println!(" {} calories", sum);
 }
 
-fn max_calories() {
+fn read_to_calories_by_elf_reverse_sorted() -> Vec::<u32>{
     let mut calories_by_elf = Vec::<u32>::new();
     let mut sum: u32 = 0;
     if let Ok(lines) = data::read_data_from_file() {
@@ -21,7 +32,11 @@ fn max_calories() {
         }
     }
     calories_by_elf.push(sum);
-    println!("{}", calories_by_elf.iter().max().unwrap());
+
+    calories_by_elf.sort_by(|a, b| b.cmp(a));
+
+    // Return
+    calories_by_elf
 }
 
 fn add_value(x: u32, value_to_add: u32) -> u32 {
