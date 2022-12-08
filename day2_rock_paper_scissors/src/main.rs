@@ -1,16 +1,15 @@
-use std::collections::HashMap;
 use std::fmt;
 
 pub mod data;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum RoundResult {
     Win,
     Lose,
     Draw,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum RpsPlay {
     Rock,
     Paper,
@@ -24,33 +23,50 @@ impl fmt::Display for RpsPlay {
 }
 
 fn main() {
-    let round_scores = read_to_round_scores();
-    let num_of_rounds = round_scores.iter().count();
-    let sum: u16 = round_scores.iter().sum();
+    let optimal_round_scores = read_to_round_scores_as_optimal();
+    println!("The Sum of All Optimal Rounds is: {}", sum_scores(optimal_round_scores));
 
-    println!("The Sum of All Rounds ({num_of_rounds}) is: {sum}");
+    let strategic_round_scores = read_to_round_scores_as_strategy();
+    println!("The Sum of All Strategic Rounds is: {}", sum_scores(strategic_round_scores));
 }
 
-fn read_to_round_scores() -> Vec::<u16>{
-    let rps_map = HashMap::from([
-        ("A", RpsPlay::Rock),
-        ("B", RpsPlay::Paper),
-        ("C", RpsPlay::Scissors),
-        ("X", RpsPlay::Rock),
-        ("Y", RpsPlay::Paper),
-        ("Z", RpsPlay::Scissors),
-    ]);
+fn sum_scores(round_scores: Vec<u16>) -> u16 {  
+    round_scores.iter().sum()
+}
 
+fn read_to_round_scores_as_optimal() -> Vec::<u16>{
     let mut round_score = Vec::<u16>::new();
     if let Ok(lines) = data::read_data_from_file() {
         for line in lines {
             if let Ok(round_plays) = line {
                 if !round_plays.is_empty() {
-                    let plays = split_line_into_plays(round_plays);
-                    let other_play = rps_map.get(plays[0].as_str()).expect("Missing Other Play");
-                    let my_play = rps_map.get(plays[1].as_str()).expect("Missing My Play");
-                    let result = determine_round_result(other_play, my_play);
-                    let score = calculate_round_value(my_play, result);
+
+                    let plays = split_line_into_codes(round_plays);
+                    let other_play = play_from_code(plays[0].as_str()).clone();
+                    let my_play = play_from_code(plays[1].as_str()).clone();
+                    let result = determine_round_result(other_play, my_play.clone());
+                    let score = calculate_round_value(my_play.clone(), result);
+
+                    round_score.push(score);
+                }
+            }
+        }
+    }
+    // Return
+    round_score
+}
+
+fn read_to_round_scores_as_strategy() -> Vec::<u16>{
+    let mut round_score = Vec::<u16>::new();
+    if let Ok(lines) = data::read_data_from_file() {
+        for line in lines {
+            if let Ok(round_plays) = line {
+                if !round_plays.is_empty() {
+                    let codes = split_line_into_codes(round_plays);
+                    let other_play = play_from_code(codes[0].as_str());
+                    let result: RoundResult = result_from_code(codes[1].as_str());
+                    let my_play: RpsPlay = determine_my_play_by_result(other_play, result.clone());
+                    let score = calculate_round_value(my_play.clone(), result.clone());
                     // println!("Other Play: {other_play}\tMy Play: {my_play}\t\tScore: {score}");
                     round_score.push(score);
                 }
@@ -61,8 +77,29 @@ fn read_to_round_scores() -> Vec::<u16>{
     round_score
 }
 
-fn split_line_into_plays(line: String) -> Vec<String> {
+fn split_line_into_codes(line: String) -> Vec<String> {
     line.split_whitespace().map(str::to_string).collect()
+}
+
+fn play_from_code(code: &str) -> RpsPlay {
+    match code {
+        "A" => RpsPlay::Rock,
+        "B" => RpsPlay::Paper,
+        "C" => RpsPlay::Scissors,
+        "X" => RpsPlay::Rock,
+        "Y" => RpsPlay::Paper,
+        "Z" => RpsPlay::Scissors,
+        &_ => RpsPlay::Scissors,
+    }
+}
+
+fn result_from_code(code: &str) -> RoundResult {
+    match code {
+        "X" => RoundResult::Lose,
+        "Y" => RoundResult::Draw,
+        "Z" => RoundResult::Win,
+        &_ => RoundResult::Lose,
+    }
 }
 
 fn value_by_result(result: RoundResult) -> u16 {
@@ -73,27 +110,55 @@ fn value_by_result(result: RoundResult) -> u16 {
     }
 }
 
-fn value_by_rps_play(rps_play: &RpsPlay) -> u16 {
+fn value_by_rps_play(rps_play: RpsPlay) -> u16 {
     match rps_play {
-        &RpsPlay::Rock => 1,
-        &RpsPlay::Paper => 2,
-        &RpsPlay::Scissors => 3,
+        RpsPlay::Rock => 1,
+        RpsPlay::Paper => 2,
+        RpsPlay::Scissors => 3,
     }
 }
 
-fn determine_round_result(other_play: &RpsPlay, my_play: &RpsPlay) -> RoundResult {
+fn my_losing_play_by_other_play(other_play: RpsPlay) -> RpsPlay {
+    match other_play {
+        RpsPlay::Rock => RpsPlay::Scissors,
+        RpsPlay::Paper => RpsPlay::Rock,
+        RpsPlay::Scissors => RpsPlay::Paper,
+    }
+}
+
+fn my_winning_play_by_other_play(other_play: RpsPlay) -> RpsPlay {
+    match other_play {
+        RpsPlay::Scissors => RpsPlay::Rock,
+        RpsPlay::Rock => RpsPlay::Paper,
+        RpsPlay::Paper => RpsPlay::Scissors,
+    }
+}
+
+fn determine_my_play_by_result(other_play: RpsPlay, expected_result: RoundResult) -> RpsPlay {
+    if expected_result == RoundResult::Draw {
+        return other_play;
+    }
+
+    if expected_result == RoundResult::Lose{
+        return my_losing_play_by_other_play(other_play);
+    }
+
+    my_winning_play_by_other_play(other_play)
+}
+
+fn determine_round_result(other_play: RpsPlay, my_play: RpsPlay) -> RoundResult {
     if other_play == my_play {
         return RoundResult::Draw;
     }
-    if (other_play == &RpsPlay::Rock && my_play == &RpsPlay::Scissors)
-        || (other_play == &RpsPlay::Paper && my_play == &RpsPlay::Rock)
-        || (other_play == &RpsPlay::Scissors && my_play == &RpsPlay::Paper) {
+    if (other_play == RpsPlay::Rock && my_play == RpsPlay::Scissors)
+        || (other_play == RpsPlay::Paper && my_play == RpsPlay::Rock)
+        || (other_play == RpsPlay::Scissors && my_play == RpsPlay::Paper) {
         return RoundResult::Lose;
     }
     
     RoundResult::Win
 }
 
-fn calculate_round_value(my_play: &RpsPlay, round_result: RoundResult) -> u16 {
+fn calculate_round_value(my_play: RpsPlay, round_result: RoundResult) -> u16 {
     value_by_rps_play(my_play) + value_by_result(round_result)
 }
